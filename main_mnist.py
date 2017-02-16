@@ -11,51 +11,71 @@ from numpy.random import *
 
 from model.mnist import load_data
 
-class TwoLayerNet:
+class MultiLayerNet:
     def __init__(self):
-        self.W1 = np.random.randn(784,100)
-        self.W2 = np.random.randn(100,10)
-        self.b1 = np.zeros(100)
-        self.b2 = np.zeros(10)
+        self.W1 = np.random.randn(784,128)
+        self.W2 = np.random.randn(128,64)
+        self.W3 = np.random.randn(64,10)
+        self.b1 = np.zeros(128)
+        self.b2 = np.zeros(64)
+        self.b3 = np.zeros(10)
+        self.loss_data = []
         
     def predict(self,X):
         z1 = np.dot(X,self.W1) + self.b1
         u1 = 1 / (1 + np.exp(-z1)) 
         z2 = np.dot(u1,self.W2) + self.b2
-        y = self.softmax(z2)
-        return u1,y
+        u2 = 1 / (1 + np.exp(-z2))
+        z3 = np.dot(u2,self.W3) + self.b3
+        y = self.softmax(z3)
+        return u1,u2,y
         
     def loss(self,x,d):
-        u1 , y = self.predict(x)
+        u1, u2, y = self.predict(x)
         return self.cross_entropy_error(y , d)
         
     def train(self,x,d):
         
-        u1 , y = self.predict(x)
+        self.loss_data.append(self.loss(batch_x,batch_y))
         
-        # バッチ処理
+        u1, u2, y = self.predict(x)
+        
+        # batch 
         N = x.shape[0]
-
         eta = 0.5
+        
+        #third layer
+        delta_3 = y - d        
 
-        delta_0 = y - d        
+        output_delta = eta * ( 1 / N ) * np.dot(u2.T , delta_3)
+        output_bias = eta * ( 1 / N) * np.sum(delta_3,axis = 0)
 
-        output_delta = eta * ( 1 / N ) * np.dot(u1.T , delta_0)
-        output_bias = eta * ( 1 / N) * np.sum(delta_0,axis = 0)
-
-        self.W2 = self.W2 - output_delta
-        self.b2 = self.b2 - output_bias
+        self.W3 = self.W3 - output_delta
+        self.b3 = self.b3 - output_bias
         
-        f_u = (1 - u1) * u1
-        before_weight = np.dot(y - d,net.W2.T)
+        #second layer
+        f_u2 = (1 - u2) * u2
+        before_weight2 = np.dot(y - d,net.W3.T)
         
-        delta_1 = f_u * before_weight
+        delta_2 = f_u2 * before_weight2
         
-        hidden_delta = eta * (1 / N) * np.dot(x.T, delta_1)
-        hidden_bias = eta * (1 / N) * np.sum(delta_1,axis = 0)
+        hidden_delta2 = eta * (1 / N) * np.dot(u1.T, delta_2)
+        hidden_bias2 = eta * (1 / N) * np.sum(delta_2,axis = 0)
         
-        self.W1 = self.W1 - hidden_delta
-        self.b1 = self.b1 - hidden_bias
+        self.W2 = self.W2 - hidden_delta2
+        self.b2 = self.b2 - hidden_bias2
+        
+        #first layer
+        f_u1 = (1 - u1) * u1
+        before_weight1 = np.dot(delta_2,net.W2.T)
+        
+        delta_1 = f_u1 * before_weight1
+        
+        hidden_delta1 = eta * (1 / N) * np.dot(x.T, delta_1)
+        hidden_bias1 = eta * (1 / N) * np.sum(delta_1,axis = 0)
+        
+        self.W1 = self.W1 - hidden_delta1
+        self.b1 = self.b1 - hidden_bias1
         
     def softmax(self,x):
         if x.ndim == 2:
@@ -75,7 +95,7 @@ class TwoLayerNet:
         return np.sum(e,axis = 1)
         
     def accuracy(self, x, t):
-        u1 , y = self.predict(x)
+        u1, u2, y = self.predict(x)
         y = np.argmax(y, axis=1)
         t = np.argmax(t, axis=1)
 
@@ -84,35 +104,33 @@ class TwoLayerNet:
         
     def relu(self,x):
         return np.maximum(0, x)
-
+        
+    def error_gragh(self):
+        x = np.arange(0,np.size(self.loss_data),1)
+        plt.plot(x,self.loss_data)
+        plt.xlabel('epoch')
+        plt.ylabel('train_loss')
+        plt.ylim([0,3])
 
     
 if __name__ == '__main__':
     
-    net = TwoLayerNet()
+    net = MultiLayerNet()
     
     mnist = load_data()
     
-    loss_data = []
+    print("Before Accuracy : %f" % net.accuracy(mnist.test.images,mnist.test.labels))
 
-    print(net.accuracy(mnist.test.images,mnist.test.labels))
-
-    epoch = 2000
+    epoch = 5000
     
     for i in range(epoch):
         batch_x , batch_y =  mnist.train.next_batch(50)
         
-        net.loss(batch_x,batch_y)
-        
         net.train(batch_x,batch_y)
         
-        loss_data.append(net.loss(batch_x,batch_y))
+    net.error_gragh()
     
-    
-    x = np.arange(0,epoch,1)
-    plt.plot(x,loss_data)
-    
-    print(net.accuracy(mnist.test.images,mnist.test.labels))
+    print("After Accuracy : %f" % net.accuracy(mnist.test.images,mnist.test.labels))
     
     
     
